@@ -7,6 +7,9 @@ WORKDIR /usr/src/app
 # Bundle app source (copy only necessary files)
 COPY package.json package-lock.json ./
 
+# List files in the workdir for debugging
+RUN ls -l
+
 # Install app dependencies (only production dependencies)
 RUN npm install --production
 
