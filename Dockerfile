@@ -4,11 +4,13 @@ FROM node:20-alpine
 # Create app directory
 WORKDIR /usr/src/app
 
+# Bundle app source (copy only necessary files)
+COPY package.json package-lock.json ./
+
 # Install app dependencies (only production dependencies)
 RUN npm install --production
 
 # Bundle app source (copy only necessary files)
-COPY package.json package-lock.json ./
 COPY src/ ./src/
 COPY server.js ./
 COPY app.js ./
