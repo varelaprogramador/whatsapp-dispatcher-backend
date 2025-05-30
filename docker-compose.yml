@@ -1,0 +1,59 @@
+# docker-compose.yml
+version: "3.8"
+
+services:
+  redis:
+    image: redis:latest
+    container_name: whatsapp-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data # Volume para persistir os dados do Redis
+    ports:
+      - "6379:6379" # Opcional: mapear a porta do Redis para o host se precisar acessar externamente
+    restart: always
+
+  server:
+    build:
+      context: . # Usa o Dockerfile no diretório atual
+    container_name: whatsapp-backend-server
+    command: npm start # Comando para iniciar o servidor API
+    ports:
+      - "3001:3001" # Mapeia a porta do servidor API
+    environment:
+      # Passe suas variáveis de ambiente essenciais para o servidor
+      # Idealmente, use um arquivo .env referenciado pelo docker-compose
+      # - EVOLUTION_API_URL=${EVOLUTION_API_URL}
+      # - EVOLUTION_API_KEY=${EVOLUTION_API_KEY}
+      # - REDIS_HOST=redis # Usa o nome do serviço redis como hostname
+      # - REDIS_PORT=6379
+      # - QUEUE_NAME=${QUEUE_NAME}
+      # ... outras variáveis
+      - NODE_ENV=production # Defina para production se for o caso
+    env_file: # Use esta opção para carregar variáveis do seu arquivo .env
+      - .env
+    depends_on:
+      - redis # Garante que o Redis inicie antes do servidor
+    restart: always # Reinicia o contêiner se ele falhar
+
+  worker:
+    build:
+      context: . # Usa o mesmo Dockerfile
+    container_name: whatsapp-backend-worker
+    command: node worker.js # Comando para iniciar o worker diretamente
+    environment:
+      # Passe as mesmas variáveis de ambiente essenciais para o worker
+      # - EVOLUTION_API_URL=${EVOLUTION_API_URL}
+      # - EVOLUTION_API_KEY=${EVOLUTION_API_KEY}
+      # - REDIS_HOST=redis # Usa o nome do serviço redis como hostname
+      # - REDIS_PORT=6379
+      # - QUEUE_NAME=${QUEUE_NAME}
+      # ... outras variáveis
+      - NODE_ENV=production # Defina para production se for o caso
+    env_file: # Use esta opção para carregar variáveis do seu arquivo .env
+      - .env
+    depends_on:
+      - redis # Garante que o Redis inicie antes do worker
+    restart: always # Reinicia o contêiner se ele falhar
+
+volumes:
+  redisdata: # Define o volume para persistência do Redis
