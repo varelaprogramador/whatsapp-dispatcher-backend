@@ -12,6 +12,7 @@ const CreateInstanceSchema = {
     instanceName: Type.String(),
     token: Type.Optional(Type.String()),
     qrcode: Type.Optional(Type.Boolean({ default: true })),
+    integration:"WHATSAPP-BAILEYS",
     // Adicionar outros campos da API Evolution se necessário
     // webhook: Type.Optional(Type.String({ format: "uri" })),
     // events: Type.Optional(Type.Array(Type.String())),
