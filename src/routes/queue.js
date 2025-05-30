@@ -9,6 +9,20 @@ const JobStatusParamsSchema = {
 };
 
 async function queueRoutes(fastify, options) {
+  fastify.get("/jobs", async (request, reply) => {
+    try {
+      // TODO: Adicionar paginação e filtros por status
+      const jobs = await messageQueue.getJobs(['wait', 'active', 'completed', 'failed', 'delayed', 'paused'], { start: 0, end: 100 });
+
+      reply.send(jobs);
+    } catch (error) {
+      fastify.log.error("Erro ao listar jobs:", error);
+      reply
+        .status(500)
+        .send({ success: false, message: "Falha ao listar jobs." });
+    }
+  });
+
   // Rota para Status Geral da Fila
   fastify.get("/status", async (request, reply) => {
     try {
