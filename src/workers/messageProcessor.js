@@ -74,7 +74,7 @@ const replaceVariables = (template, variables) => {
 
 /**
  * Processa um job de envio de mensagem da fila BullMQ.
- * Diferencia entre jobs de mensagem única ('sendMessage') e jobs de lote ('sendBulkMessage').
+ * Diferencia entre jobs de mensagem única ('sendMessage') e jobs de lote ('sendBulkMessage') e múltiplos blocos ('sendMultipleBlocks').
  * @param {import("bullmq").Job} job O objeto do job contendo os dados.
  */
 const processMessageJob = async (job) => {
@@ -82,7 +82,7 @@ const processMessageJob = async (job) => {
   const { instanceName, type, delayInMs = 0, ...jobSpecificData } = data; // Extrair instanceName, type, delayInMs e resto dos dados
 
   logger.info(
-    `Iniciando processamento do job ${id} (nome: ${name}, Tentativa ${attemptsMade}/${config.queue.defaultJobOptions.attempts}). Tipo: ${type}, Instância: ${instanceName}`
+    `Iniciando processamento do job ${id} (nome: ${name}, Tentativa ${attemptsMade}/${config.queue.defaultJobOptions.attempts}). Tipo: ${type || 'N/A'}, Instância: ${instanceName}`
   );
 
   // Adicionar um try/catch principal para capturar erros gerais no processamento do job
@@ -293,6 +293,146 @@ const processMessageJob = async (job) => {
       // O job de lote é considerado concluído com sucesso se chegou ao fim da iteração
       // Os resultados individuais de sucesso/falha estão nos logs e no array `results` (embora `results` não seja retornado por padrão pelo worker)
       return { successfulDispatches, failedDispatches, results }; // Retornar um resumo
+
+    } else if (name === 'sendMultipleBlocks') {
+      // Lógica para processar job de múltiplos blocos
+      const { phone: rawPhone, messageBlocks, delayBeforeStartMs = 0, delayBetweenBlocksMs = 0 } = data; // Extrair dados específicos
+
+      if (!rawPhone || !Array.isArray(messageBlocks) || messageBlocks.length === 0) {
+        logger.error(`Job ${id}: Job de múltiplos blocos recebido sem telefone ou messageBlocks inválido.`);
+        throw new Error("Job de múltiplos blocos sem telefone ou blocos.");
+      }
+
+      // 1. Formatar o número de telefone (é o mesmo para todos os blocos)
+      const formattedNumber = formatPhoneNumber(rawPhone);
+      if (!formattedNumber) {
+        logger.error(`Job ${id}: Número de telefone inválido para job de múltiplos blocos após formatação: ${rawPhone}. Job será marcado como falho.`);
+        throw new Error(`Número de telefone inválido para múltiplos blocos: ${rawPhone}`);
+      }
+
+      logger.info(`Job de Múltiplos Blocos ${id}: Iniciando processamento para ${formattedNumber}. Blocos: ${messageBlocks.length}, Delay inicial: ${delayBeforeStartMs}ms, Delay entre blocos: ${delayBetweenBlocksMs}ms.`);
+
+      // Aplicar delay inicial
+      if (delayBeforeStartMs > 0) {
+        logger.debug(`Job de Múltiplos Blocos ${id}: Aguardando delay inicial de ${delayBeforeStartMs}ms.`);
+        await delay(delayBeforeStartMs);
+      }
+
+      // Ordenar blocos por ordem
+      const sortedBlocks = [...messageBlocks].sort((a, b) => a.order - b.order);
+
+      let successfulBlocks = 0;
+      let failedBlocks = 0;
+      const blockResults = [];
+
+      for (let i = 0; i < sortedBlocks.length; i++) {
+        const block = sortedBlocks[i];
+        logger.debug(`Job de Múltiplos Blocos ${id}: Processando bloco ${i + 1}/${sortedBlocks.length} (Ordem: ${block.order}, Tipo: ${block.type}).`);
+
+        try {
+          let response;
+          // TODO: Adicionar suporte a variáveis dentro dos blocos se necessário
+          // Exemplo: const blockMessage = replaceVariables(block.message, block.variables);
+
+          // Construir o payload para o bloco atual
+          // Reutilizar a lógica do switch/case do job único, adaptando para os dados do bloco
+          switch (block.type) {
+            case "text":
+              const textPayload = {
+                options: { presence: "paused", delay: 1200 },
+                number: formattedNumber,
+                text: block.message, // Usar message do bloco
+              };
+              response = await sendTextMessage(instanceName, textPayload);
+              break;
+            case "media":
+              const mediaPayload = {
+                options: { presence: "paused", delay: 1200 },
+                number: formattedNumber,
+                // mediatype, mimetype, fileName, linkPreview viriam do bloco
+                caption: block.caption, // Usar caption do bloco
+                media: block.mediaUrl, // Usar mediaUrl do bloco
+                // delay específico do bloco não é usado aqui, o delay é entre blocos
+              };
+               //TODO: Adicionar suporte para mediatype, mimetype, fileName, linkPreview se necessário para blocos.
+              response = await sendMediaMessage(instanceName, mediaPayload);
+              break;
+            case "audio":
+              const audioPayload = {
+                options: { presence: "paused", delay: 1200 },
+                number: formattedNumber,
+                audio: block.audioUrl, // Usar audioUrl do bloco
+                // delay específico do bloco não é usado aqui
+              };
+              //TODO: Adicionar suporte para linkPreview se necessário para blocos.
+              response = await sendAudioMessage(instanceName, audioPayload);
+              break;
+            case "buttons":
+              const buttonsPayload = {
+                options: { presence: "paused", delay: 1200 },
+                number: formattedNumber,
+                title: block.title, // Usar title do bloco
+                description: block.description, // Usar description do bloco
+                footer: block.footer, // Usar footer do bloco
+                buttons: block.buttons, // Usar buttons do bloco
+                // delay, linkPreview viriam do bloco
+              };
+              //TODO: Aplicar variáveis nos campos de botões se necessário
+              response = await sendButtonsMessage(instanceName, buttonsPayload);
+              break;
+            case "list":
+              const listPayload = {
+                options: { presence: "paused", delay: 1200 },
+                number: formattedNumber,
+                title: block.title, // Usar title do bloco
+                description: block.description, // Usar description do bloco
+                buttonText: block.buttonText, // Usar buttonText do bloco
+                footerText: block.footerText, // Usar footerText do bloco
+                values: block.values, // Usar values do bloco
+                // delay, linkPreview viriam do bloco
+              };
+              //TODO: Aplicar variáveis nos campos de lista (title, description, values) se necessário
+              response = await sendListMessage(instanceName, listPayload);
+              break;
+            case "poll":
+              const pollPayload = {
+                options: { presence: "paused", delay: 1200 },
+                number: formattedNumber,
+                name: block.name, // Usar name do bloco
+                selectableCount: block.selectableCount,
+                values: block.values, // Usar values do bloco
+                // delay, linkPreview viriam do bloco
+              };
+              //TODO: Aplicar variáveis nos campos de enquete (name, values) se necessário
+              response = await sendPollMessage(instanceName, pollPayload);
+              break;
+            default:
+              logger.warn(`Job de Múltiplos Blocos ${id}: Tipo de mensagem desconhecido ou não suportado para bloco (Ordem: ${block.order}, Tipo: ${block.type}). Pulando bloco.`);
+              failedBlocks++;
+              blockResults.push({ order: block.order, type: block.type, success: false, error: `Tipo de mensagem não suportado: ${block.type}` });
+              continue; // Pula para o próximo bloco
+          }
+
+          logger.debug(`Job de Múltiplos Blocos ${id}: Bloco (Ordem: ${block.order}, Tipo: ${block.type}) enviado com sucesso para ${formattedNumber}. Resposta API: ${JSON.stringify(response?.key || response)}`);
+          successfulBlocks++;
+          blockResults.push({ order: block.order, type: block.type, success: true, response: response?.key || response });
+
+        } catch (apiError) {
+          logger.error(`Job de Múltiplos Blocos ${id}: Falha ao enviar bloco (Ordem: ${block.order}, Tipo: ${block.type}) para ${formattedNumber}: ${apiError.message}`, { apiErrorCode: apiError.statusCode });
+          failedBlocks++;
+          blockResults.push({ order: block.order, type: block.type, success: false, error: apiError.message, apiErrorCode: apiError.statusCode });
+        }
+
+        // Aplicar delay entre blocos, se não for o último
+        if (delayBetweenBlocksMs > 0 && i < sortedBlocks.length - 1) {
+          logger.debug(`Job de Múltiplos Blocos ${id}: Aguardando ${delayBetweenBlocksMs}ms antes do próximo bloco...`);
+          await delay(delayBetweenBlocksMs);
+        }
+      }
+
+      logger.info(`Processamento do job de múltiplos blocos ${id} concluído. Blocos Sucesso: ${successfulBlocks}, Blocos Falha: ${failedBlocks}.`);
+      // O job de múltiplos blocos é considerado concluído com sucesso se chegou ao fim da iteração
+      return { successfulBlocks, failedBlocks, blockResults }; // Retornar um resumo
 
     } else {
       // Tratar outros tipos de job desconhecidos, se houver
