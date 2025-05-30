@@ -4,23 +4,18 @@ FROM node:20-alpine
 # Create app directory
 WORKDIR /usr/src/app
 
-# Bundle app source (copy only necessary files)
-COPY package.json package-lock.json ./
+# A wildcard is used to ensure both package.json AND package-lock.json are copied
+COPY package*.json ./
 
-# List files in the workdir for debugging
-RUN ls -l
-
-# Install app dependencies (install all dependencies, including dev)
+# Install app dependencies
 RUN npm install
 
-# Bundle app source (copy only necessary files)
-COPY src/ ./src/
-COPY server.js ./
-COPY app.js ./
-COPY worker.js ./
+# Bundle app source
+COPY . .
 
-# Start the server
-CMD [ "node", "server.js" ]
+# Start the server using the production build
+CMD [ "node", "server.js"]
+CMD [ "node", "worker.js"]
 
-# Exposing server port (adjust if your app listens on a different port)
-EXPOSE 3001
+# Exposing server port
+EXPOSE 3000
