@@ -2,44 +2,7 @@ import { Queue } from 'bullmq';
 import redisClient from '../lib/redis.js';
 import config from '../config/index.js';
 import logger from '../lib/logger.js';
-export const listJobs = async (types = [], start = 0, end = 19, asc = false) => {
-  try {
-    // Validar tipos, usar todos se vazio
-    const validTypes = ["completed", "failed", "active", "waiting", "delayed", "paused"];
-    const jobTypes = types.length > 0 ? types.filter(t => validTypes.includes(t)) : validTypes;
-    
-    if (jobTypes.length === 0) {
-        return { jobs: [], total: 0 }; // Nenhum tipo válido selecionado
-    }
 
-    logger.debug(`Buscando jobs dos tipos [${jobTypes.join(', ')}] de ${start} a ${end}, ordem ${asc ? 'ASC' : 'DESC'}`);
-
-    const jobs = await messageQueue.getJobs(jobTypes, start, end, asc);
-    
-    // Para obter o total, precisamos contar para cada tipo individualmente
-    // (getJobs não retorna o total geral filtrado)
-    const counts = await messageQueue.getJobCounts(...jobTypes);
-    const total = jobTypes.reduce((sum, type) => sum + (counts[type] || 0), 0);
-
-    // Mapear para retornar apenas dados relevantes (opcional)
-    const formattedJobs = jobs.map(async job => ({
-      id: job.id,
-      name: job.name,
-      data: job.data,
-      state: await job.getState(), // Pega o estado atual
-      timestamp: job.timestamp,
-      processedOn: job.processedOn,
-      finishedOn: job.finishedOn,
-      failedReason: job.failedReason,
-      attemptsMade: job.attemptsMade,
-    }));
-
-    return { jobs: formattedJobs, total };
-  } catch (error) {
-    logger.error("Erro ao listar jobs da fila:", error);
-    throw new Error("Falha ao buscar jobs da fila.");
-  }
-};
 // Criar a instância da fila principal para disparos
 const messageQueue = new Queue(config.queue.name, {
   connection: redisClient,
@@ -131,4 +94,41 @@ export {
   getQueueStatus,
   getJobById,
 };
+export const listJobs = async (types = [], start = 0, end = 19, asc = false) => {
+  try {
+    // Validar tipos, usar todos se vazio
+    const validTypes = ["completed", "failed", "active", "waiting", "delayed", "paused"];
+    const jobTypes = types.length > 0 ? types.filter(t => validTypes.includes(t)) : validTypes;
+    
+    if (jobTypes.length === 0) {
+        return { jobs: [], total: 0 }; // Nenhum tipo válido selecionado
+    }
 
+    logger.debug(`Buscando jobs dos tipos [${jobTypes.join(', ')}] de ${start} a ${end}, ordem ${asc ? 'ASC' : 'DESC'}`);
+
+    const jobs = await messageQueue.getJobs(jobTypes, start, end, asc);
+    
+    // Para obter o total, precisamos contar para cada tipo individualmente
+    // (getJobs não retorna o total geral filtrado)
+    const counts = await messageQueue.getJobCounts(...jobTypes);
+    const total = jobTypes.reduce((sum, type) => sum + (counts[type] || 0), 0);
+
+    // Mapear para retornar apenas dados relevantes (opcional)
+    const formattedJobs = jobs.map(async job => ({
+      id: job.id,
+      name: job.name,
+      data: job.data,
+      state: await job.getState(), // Pega o estado atual
+      timestamp: job.timestamp,
+      processedOn: job.processedOn,
+      finishedOn: job.finishedOn,
+      failedReason: job.failedReason,
+      attemptsMade: job.attemptsMade,
+    }));
+
+    return { jobs: formattedJobs, total };
+  } catch (error) {
+    logger.error("Erro ao listar jobs da fila:", error);
+    throw new Error("Falha ao buscar jobs da fila.");
+  }
+};
