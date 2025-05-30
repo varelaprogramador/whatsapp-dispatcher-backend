@@ -34,17 +34,19 @@ logger.info(`Serviço de fila ${config.queue.name} inicializado.`);
 
 /**
  * Adiciona um job de envio de mensagem à fila.
- * @param {object} jobData - Dados do job (instanceName, phone, message, type, etc.)
+ * @param {object} jobData - Dados do job (instanceName, phone, message, type, etc.) ou dados do lote.
+ * @param {string} jobName - O nome do job ('sendMessage' para único, 'sendBulkMessage' para lote).
  * @param {string} [jobId] - (Opcional) ID customizado para o job
  * @param {import('bullmq').JobsOptions} [opts] - (Opcional) Opções específicas para este job (sobrescrevem defaultJobOptions)
  * @returns {Promise<import('bullmq').Job>}
  */
-const addMessageDispatchJob = async (jobData, jobId = undefined, opts = {}) => {
+const addMessageDispatchJob = async (jobData, jobName, jobId = undefined, opts = {}) => {
   try {
     // Mesclar opções padrão com opções específicas do job
     const jobOptions = { ...config.queue.defaultJobOptions, ...opts, jobId };
-    const job = await messageQueue.add('sendMessage', jobData, jobOptions);
-    logger.info(`Job ${job.id} (nome: sendMessage) adicionado à fila ${config.queue.name}`);
+    // Usar o jobName passado como parâmetro
+    const job = await messageQueue.add(jobName, jobData, jobOptions);
+    logger.info(`Job ${job.id} (nome: ${jobName}) adicionado à fila ${config.queue.name}`);
     return job;
   } catch (error) {
     logger.error('Erro ao adicionar job à fila:', { queueName: config.queue.name, jobData, error });
@@ -130,5 +132,27 @@ export const listJobs = async (types = [], start = 0, end = 19, asc = false) => 
   } catch (error) {
     logger.error("Erro ao listar jobs da fila:", error);
     throw new Error("Falha ao buscar jobs da fila.");
+  }
+};
+
+/**
+ * Atualiza os dados de um job existente na fila.
+ * @param {string} jobId - O ID do job a ser atualizado.
+ * @param {object} newData - Os novos dados para o job.
+ * @returns {Promise<import('bullmq').Job>}
+ */
+export const updateMessageDispatchJob = async (jobId, newData) => {
+  try {
+    const job = await messageQueue.getJob(jobId);
+    if (!job) {
+      throw new Error(`Job com ID ${jobId} não encontrado.`);
+    }
+    logger.info(`Atualizando dados do job ${jobId}`);
+    await job.updateData(newData);
+    logger.info(`Dados do job ${jobId} atualizados com sucesso.`);
+    return job;
+  } catch (error) {
+    logger.error(`Erro ao atualizar job ${jobId}:`, error);
+    throw new Error(`Falha ao atualizar job ${jobId}: ${error.message}`);
   }
 };

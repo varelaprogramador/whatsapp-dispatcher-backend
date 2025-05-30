@@ -61,6 +61,16 @@ const formatPhoneNumber = (phoneRaw) => {
   return null; // Retorna null se não conseguir formatar
 };
 
+// Função simples para substituir variáveis (exemplo) - Movida de src/routes/dispatch.js
+const replaceVariables = (template, variables) => {
+  if (!variables) return template;
+  let result = template;
+  for (const key in variables) {
+    const regex = new RegExp(`{{\s*${key}\s*}}`, "g");
+    result = result.replace(regex, variables[key]);
+  }
+  return result;
+};
 
 /**
  * Processa um job de envio de mensagem da fila BullMQ.
@@ -188,4 +198,10 @@ const processMessageJob = async (job) => {
 };
 
 export default processMessageJob;
+
+export {
+  formatPhoneNumber,
+  replaceVariables,
+  delay
+};
 

@@ -1,6 +1,8 @@
 // src/routes/dispatch.js
 import { addMessageDispatchJob } from "../services/queue.js";
 import { Type } from "@sinclair/typebox";
+import { replaceVariables } from '../workers/messageProcessor.js';
+import config from '../config/index.js'; // Importar o objeto de configuração
 
 // Schema para validação do corpo da requisição de envio único
 const SingleDispatchRequestSchema = {
@@ -62,24 +64,16 @@ const BulkDispatchRequestSchema = {
       instanceName: Type.String(),
       recipients: Type.Array(BulkRecipientSchema, { minItems: 1 }),
       message: Type.Optional(Type.String()), // Mensagem base, pode conter variáveis
-      type: Type.Enum({ text: "text", media: "media" }), // Simplificado para lote, expandir se necessário
+      type: Type.Enum({ text: "text", media: "media", audio: "audio" }), // Expandido para incluir audio, pode expandir mais se necessário
       mediaUrl: Type.Optional(Type.String({ format: "uri" })),
+      audioUrl: Type.Optional(Type.String({ format: "uri" })), // Adicionado para audio em lote
       caption: Type.Optional(Type.String()),
-      // Adicionar outros campos se o envio em lote suportar mais tipos
+      delayInMs: Type.Optional(Type.Integer({ minimum: 0, description: "Atraso em milissegundos entre o envio de cada mensagem dentro do lote." })), // Adicionado campo para delay
+      // Adicionar outros campos se o envio em lote suportar mais tipos complexos (buttons, list, etc.)
+      // Nota: A API Evolution pode ter limitações no que suporta em lote.
     },
     { additionalProperties: false }
   ),
-};
-
-// Função simples para substituir variáveis (exemplo)
-const replaceVariables = (template, variables) => {
-  if (!variables) return template;
-  let result = template;
-  for (const key in variables) {
-    const regex = new RegExp(`{{\s*${key}\s*}}`, "g");
-    result = result.replace(regex, variables[key]);
-  }
-  return result;
 };
 
 async function dispatchRoutes(fastify, options) {
@@ -103,8 +97,8 @@ async function dispatchRoutes(fastify, options) {
         }
         // Adicionar mais validações para buttons, list, etc.
 
-        const job = await addMessageDispatchJob(jobData);
-        reply.send({ success: true, message: "Job adicionado à fila.", jobId: job.id });
+        const job = await addMessageDispatchJob(jobData, 'sendMessage', `${jobData.instanceName}-${jobData.phone}-${Date.now()}`); // Gerar jobId para single
+        reply.send({ success: true, message: "Job único adicionado à fila.", jobId: job.id });
       } catch (error) {
         fastify.log.error("Erro ao adicionar job único:", error);
         reply
@@ -114,69 +108,85 @@ async function dispatchRoutes(fastify, options) {
     }
   );
 
-  // Rota para Envio em Lote
-  fastify.post(
-    "/bulk",
-    { schema: BulkDispatchRequestSchema },
-    async (request, reply) => {
+// Rota para Envio em Lote
+fastify.post(
+  "/bulk",
+  { schema: BulkDispatchRequestSchema },
+  async (request, reply) => {
+    try {
+      // Extrair dados da requisição
       const {
         instanceName,
         recipients,
         message: messageTemplate,
         type,
         mediaUrl,
+        audioUrl,
         caption: captionTemplate,
+        delayInMs = 0, // Valor padrão
       } = request.body;
-      const jobIds = [];
-      let failedCount = 0;
 
-      fastify.log.info(
-        `Recebida requisição de envio em lote para ${recipients.length} destinatários.`
-      );
-
-      for (const recipient of recipients) {
-        // Substituir variáveis na mensagem e legenda
-        const finalMessage = messageTemplate
-          ? replaceVariables(messageTemplate, recipient.variables)
-          : undefined;
-        const finalCaption = captionTemplate
-          ? replaceVariables(captionTemplate, recipient.variables)
-          : undefined;
-
-        const jobData = {
-          instanceName,
-          phone: recipient.phone,
-          message: finalMessage,
-          type,
-          mediaUrl,
-          caption: finalCaption,
-          // Passar outros dados necessários
-        };
-
-        try {
-          const job = await addMessageDispatchJob(jobData);
-          jobIds.push(job.id);
-        } catch (error) {
-          failedCount++;
-          fastify.log.error(
-            `Falha ao enfileirar job para ${recipient.phone}:`,
-            error
-          );
-        }
+      if (!Array.isArray(recipients) || recipients.length === 0) {
+        return reply.status(400).send({
+          success: false,
+          message: "A lista de destinatários é obrigatória e não pode estar vazia.",
+        });
       }
 
-      const successCount = jobIds.length;
       fastify.log.info(
-        `Envio em lote concluído: ${successCount} jobs adicionados, ${failedCount} falhas ao enfileirar.`
+        `Recebida requisição de envio em lote para ${recipients.length} destinatários. Instância: ${instanceName}.` +
+        (delayInMs ? ` Com delay solicitado de ${delayInMs}ms entre mensagens.` : "")
       );
 
-      reply.send({
+      // Preparar dados do job de lote
+      const bulkJobData = {
+        instanceName,
+        recipients,
+        messageTemplate,
+        type,
+        mediaUrl,
+        audioUrl,
+        captionTemplate,
+        delayInMs,
+      };
+
+      // Gerar um jobId único
+      const bulkJobId = `bulk-${instanceName}-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+
+      // Adicionar job à fila
+      const job = await addMessageDispatchJob(bulkJobData, "sendBulkMessage", bulkJobId);
+
+      fastify.log.info(`Job de lote ${job.id} (nome: sendBulkMessage) adicionado à fila ${config.queue.name} para ${recipients.length} destinatários.`);
+
+      // REMOVER delay de debug em produção
+      // const end = Date.now() + 50; while (Date.now() < end);
+
+      // Resposta de sucesso
+      return reply.send({
         success: true,
-        message: `${successCount} jobs adicionados à fila.${failedCount > 0 ? ` ${failedCount} falharam ao serem adicionados.` : ""}`,
-        jobIds,
+        message: `Job de lote adicionado à fila para ${recipients.length} destinatários.`,
+        bulkJobId: job.id,
+      });
+
+    } catch (error) {
+      // Log detalhado do erro
+      fastify.log.error(
+        `Erro na rota /bulk: ${JSON.stringify(error, Object.getOwnPropertyNames(error))}`,
+        {
+          message: error.message,
+          stack: error.stack,
+          name: error.name,
+        }
+      );
+      
+      return reply.status(500).send({
+        success: false,
+        message: "Falha ao adicionar job de lote à fila.",
       });
     }
-  );
+  }
+);
+
 }
 
 export default dispatchRoutes;

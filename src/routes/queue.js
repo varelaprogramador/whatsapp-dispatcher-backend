@@ -1,6 +1,7 @@
 // src/routes/queue.js
 import {
   getQueueStatus,
+  
   getJobById,
   listJobs, // Importar a nova função
 } from "../services/queue.js";
