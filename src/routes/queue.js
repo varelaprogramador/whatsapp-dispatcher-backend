@@ -1,6 +1,7 @@
 // src/routes/queue.js
 import { messageQueue, getQueueStatus, getJobById } from "../services/queue.js";
 import { Type } from "@sinclair/typebox";
+import { listJobs } from "../services/queue.js";
 
 const JobStatusParamsSchema = {
   params: Type.Object({
@@ -10,18 +11,20 @@ const JobStatusParamsSchema = {
 
 async function queueRoutes(fastify, options) {
   fastify.get("/jobs", async (request, reply) => {
-    try {
-      // TODO: Adicionar paginação e filtros por status
-      const jobs = await messageQueue.getJobs(['wait', 'active', 'completed', 'failed', 'delayed', 'paused'], { start: 0, end: 100 });
+    const { types, start, end, order } = request.query;
+    const jobTypes = types ? types.split(',') : [];
+    const startIndex = parseInt(start, 10) || 0;
+    const endIndex = parseInt(end, 10) || 19;
+    const asc = order === 'ASC';
 
-      reply.send(jobs);
+    try {
+      const result = await listJobs(jobTypes, startIndex, endIndex, asc);
+      return result;
     } catch (error) {
-      fastify.log.error("Erro ao listar jobs:", error);
-      reply
-        .status(500)
-        .send({ success: false, message: "Falha ao listar jobs." });
+      reply.status(500).send({ success: false, message: error.message });
     }
   });
+
 
   // Rota para Status Geral da Fila
   fastify.get("/status", async (request, reply) => {
