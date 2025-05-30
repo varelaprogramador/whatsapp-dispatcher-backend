@@ -17,7 +17,7 @@ async function queueRoutes(fastify, options) {
 
       reply.send(jobs);
     } catch (error) {
-      fastify.log.error("Erro ao listar jobs:", error);
+      fastify.log.error("Erro ao listar jobs:", error.stack);
       reply
         .status(500)
         .send({ success: false, message: "Falha ao listar jobs." });
