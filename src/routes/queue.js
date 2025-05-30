@@ -1,7 +1,7 @@
 // src/routes/queue.js
 import {
   getQueueStatus,
-  getJobStatus,
+  getJobById,
   listJobs, // Importar a nova função
 } from "../services/queue.js";
 import logger from "../lib/logger.js";
@@ -20,7 +20,7 @@ async function queueRoutes(fastify, options) {
   fastify.get("/jobs/:jobId/status", async (request, reply) => {
     const { jobId } = request.params;
     try {
-      const job = await getJobStatus(jobId);
+      const job = await getJobById(jobId);
       if (!job) {
         return reply.status(404).send({ success: false, message: "Job não encontrado." });
       }
