@@ -113,15 +113,17 @@ const processMessageJob = async (job) => {
       switch (type) {
         case "text":
           const textPayload = {
-            options: { presence: "paused", delay: 1200 },
             number: formattedNumber,
             text: messageData.message,
+            delay: messageData.delay,
+            linkPreview: messageData.linkPreview,
+            mentionsEveryOne: messageData.mentionsEveryOne,
+            mentioned: messageData.mentioned,
           };
           response = await sendTextMessage(instanceName, textPayload);
           break;
         case "media":
           const mediaPayload = {
-            options: { presence: "paused", delay: 1200 },
             number: formattedNumber,
             mediatype: messageData.mediatype,
             mimetype: messageData.mimetype,
@@ -130,22 +132,24 @@ const processMessageJob = async (job) => {
             fileName: messageData.fileName,
             delay: messageData.delay,
             linkPreview: messageData.linkPreview,
+            mentionsEveryOne: messageData.mentionsEveryOne,
+            mentioned: messageData.mentioned,
           };
           response = await sendMediaMessage(instanceName, mediaPayload);
           break;
         case "audio":
           const audioPayload = {
-            options: { presence: "paused", delay: 1200 },
             number: formattedNumber,
             audio: messageData.audioUrl,
             delay: messageData.delay,
             linkPreview: messageData.linkPreview,
+            mentionsEveryOne: messageData.mentionsEveryOne,
+            mentioned: messageData.mentioned,
           };
           response = await sendAudioMessage(instanceName, audioPayload);
           break;
         case "buttons":
           const buttonsPayload = {
-            options: { presence: "paused", delay: 1200 },
             number: formattedNumber,
             title: replaceVariables(messageData.title, messageData.variables), // Aplicar variáveis no título
             description: replaceVariables(messageData.description, messageData.variables), // Aplicar variáveis na descrição
@@ -153,12 +157,13 @@ const processMessageJob = async (job) => {
             buttons: messageData.buttons, // TODO: Aplicar variáveis nos botões se necessário
             delay: messageData.delay,
             linkPreview: messageData.linkPreview,
+            mentionsEveryOne: messageData.mentionsEveryOne,
+            mentioned: messageData.mentioned,
           };
           response = await sendButtonsMessage(instanceName, buttonsPayload);
           break;
         case "list":
           const listPayload = {
-            options: { presence: "paused", delay: 1200 },
             number: formattedNumber,
             title: replaceVariables(messageData.title, messageData.variables), // Aplicar variáveis no título
             description: replaceVariables(messageData.description, messageData.variables), // Aplicar variáveis na descrição
@@ -167,18 +172,21 @@ const processMessageJob = async (job) => {
             values: messageData.values, // TODO: Aplicar variáveis nas seções e linhas da lista se necessário
             delay: messageData.delay,
             linkPreview: messageData.linkPreview,
+            mentionsEveryOne: messageData.mentionsEveryOne,
+            mentioned: messageData.mentioned,
           };
           response = await sendListMessage(instanceName, listPayload);
           break;
         case "poll":
           const pollPayload = {
-            options: { presence: "paused", delay: 1200 },
             number: formattedNumber,
             name: replaceVariables(messageData.name, messageData.variables), // Aplicar variáveis no nome da enquete
             selectableCount: messageData.selectableCount,
-            values: messageData.values, // TODO: Aplicar variáveis nas opções da enquete se necessário
+            values: Array.isArray(messageData.values) ? messageData.values.map(value => ({ optionName: value })) : [],
             delay: messageData.delay,
             linkPreview: messageData.linkPreview,
+            mentionsEveryOne: messageData.mentionsEveryOne,
+            mentioned: messageData.mentioned,
           };
           response = await sendPollMessage(instanceName, pollPayload);
           break;
@@ -236,30 +244,36 @@ const processMessageJob = async (job) => {
           switch (type) {
             case "text":
               const textPayload = {
-                options: { presence: "paused", delay: 1200 },
                 number: formattedNumber,
                 text: messageToSend,
+                delay: messageData.delay,
+                linkPreview: messageData.linkPreview,
+                mentionsEveryOne: messageData.mentionsEveryOne,
+                mentioned: messageData.mentioned,
               };
               response = await sendTextMessage(instanceName, textPayload);
               break;
             case "media":
               const mediaPayload = {
-                options: { presence: "paused", delay: 1200 },
                 number: formattedNumber,
-                // mediatype, mimetype, fileName, linkPreview viriam do jobSpecificData, se suportado em lote
                 caption: captionToSend,
                 media: mediaUrl, // mediaUrl é o mesmo para todo o lote
-                // delay específico do lote não é usado aqui, o delay é entre envios
+                delay: messageData.delay,
+                linkPreview: messageData.linkPreview,
+                mentionsEveryOne: messageData.mentionsEveryOne,
+                mentioned: messageData.mentioned,
               };
                //TODO: Adicionar suporte para mediatype, mimetype, fileName, linkPreview se a API Evolution suportar envio em lote.
               response = await sendMediaMessage(instanceName, mediaPayload);
               break;
             case "audio":
               const audioPayload = {
-                options: { presence: "paused", delay: 1200 },
                 number: formattedNumber,
                 audio: audioUrl, // audioUrl é o mesmo para todo o lote
-                // delay específico do lote não é usado aqui
+                delay: messageData.delay,
+                linkPreview: messageData.linkPreview,
+                mentionsEveryOne: messageData.mentionsEveryOne,
+                mentioned: messageData.mentioned,
               };
               //TODO: Adicionar suporte para linkPreview se a API Evolution suportar envio em lote.
               response = await sendAudioMessage(instanceName, audioPayload);
@@ -339,69 +353,81 @@ const processMessageJob = async (job) => {
           switch (block.type) {
             case "text":
               const textPayload = {
-                options: { presence: "paused", delay: 1200 },
                 number: formattedNumber,
                 text: block.message, // Usar message do bloco
+                delay: block.delay,
+                linkPreview: block.linkPreview,
+                mentionsEveryOne: block.mentionsEveryOne,
+                mentioned: block.mentioned,
               };
               response = await sendTextMessage(instanceName, textPayload);
               break;
             case "media":
               const mediaPayload = {
-                options: { presence: "paused", delay: 1200 },
                 number: formattedNumber,
-                // mediatype, mimetype, fileName, linkPreview viriam do bloco
                 caption: block.caption, // Usar caption do bloco
                 media: block.mediaUrl, // Usar mediaUrl do bloco
-                // delay específico do bloco não é usado aqui, o delay é entre blocos
+                delay: block.delay,
+                linkPreview: block.linkPreview,
+                mentionsEveryOne: block.mentionsEveryOne,
+                mentioned: block.mentioned,
               };
                //TODO: Adicionar suporte para mediatype, mimetype, fileName, linkPreview se necessário para blocos.
               response = await sendMediaMessage(instanceName, mediaPayload);
               break;
             case "audio":
               const audioPayload = {
-                options: { presence: "paused", delay: 1200 },
                 number: formattedNumber,
                 audio: block.audioUrl, // Usar audioUrl do bloco
-                // delay específico do bloco não é usado aqui
+                delay: block.delay,
+                linkPreview: block.linkPreview,
+                mentionsEveryOne: block.mentionsEveryOne,
+                mentioned: block.mentioned,
               };
               //TODO: Adicionar suporte para linkPreview se necessário para blocos.
               response = await sendAudioMessage(instanceName, audioPayload);
               break;
             case "buttons":
               const buttonsPayload = {
-                options: { presence: "paused", delay: 1200 },
                 number: formattedNumber,
                 title: block.title, // Usar title do bloco
                 description: block.description, // Usar description do bloco
                 footer: block.footer, // Usar footer do bloco
                 buttons: block.buttons, // Usar buttons do bloco
-                // delay, linkPreview viriam do bloco
+                delay: block.delay,
+                linkPreview: block.linkPreview,
+                mentionsEveryOne: block.mentionsEveryOne,
+                mentioned: block.mentioned,
               };
               //TODO: Aplicar variáveis nos campos de botões se necessário
               response = await sendButtonsMessage(instanceName, buttonsPayload);
               break;
             case "list":
               const listPayload = {
-                options: { presence: "paused", delay: 1200 },
                 number: formattedNumber,
                 title: block.title, // Usar title do bloco
                 description: block.description, // Usar description do bloco
                 buttonText: block.buttonText, // Usar buttonText do bloco
                 footerText: block.footerText, // Usar footerText do bloco
                 values: block.values, // Usar values do bloco
-                // delay, linkPreview viriam do bloco
+                delay: block.delay,
+                linkPreview: block.linkPreview,
+                mentionsEveryOne: block.mentionsEveryOne,
+                mentioned: block.mentioned,
               };
               //TODO: Aplicar variáveis nos campos de lista (title, description, values) se necessário
               response = await sendListMessage(instanceName, listPayload);
               break;
             case "poll":
               const pollPayload = {
-                options: { presence: "paused", delay: 1200 },
                 number: formattedNumber,
                 name: block.name, // Usar name do bloco
                 selectableCount: block.selectableCount,
                 values: block.values, // Usar values do bloco
-                // delay, linkPreview viriam do bloco
+                delay: block.delay,
+                linkPreview: block.linkPreview,
+                mentionsEveryOne: block.mentionsEveryOne,
+                mentioned: block.mentioned,
               };
               //TODO: Aplicar variáveis nos campos de enquete (name, values) se necessário
               response = await sendPollMessage(instanceName, pollPayload);

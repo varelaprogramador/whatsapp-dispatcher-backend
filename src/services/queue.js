@@ -96,6 +96,31 @@ export {
   getQueueStatus,
   getJobById,
 };
+
+/**
+ * Cancela e remove um job da fila pelo ID.
+ * Nota: Jobs em estado 'active' podem não ser interrompidos imediatamente, dependendo da lógica do worker, mas serão removidos da fila.
+ * @param {string} jobId - O ID do job a ser cancelado e removido.
+ * @returns {Promise<void>}
+ */
+export const cancelJob = async (jobId) => {
+  try {
+    const job = await messageQueue.getJob(jobId);
+    if (!job) {
+      // Retorna silenciosamente se o job não existe ou já foi removido/finalizado
+      logger.warn(`Tentativa de cancelar job ${jobId} que não foi encontrado.`);
+      return;
+    }
+
+    logger.info(`Cancelando e removendo job ${jobId} do estado ${await job.getState()}`);
+    await job.remove();
+    logger.info(`Job ${jobId} removido com sucesso.`);
+  } catch (error) {
+    logger.error(`Erro ao cancelar job ${jobId}:`, error);
+    throw new Error(`Falha ao cancelar job ${jobId}: ${error.message}`);
+  }
+};
+
 export const listJobs = async (types = [], start = 0, end = 19, asc = false) => {
   try {
     // Validar tipos, usar todos se vazio

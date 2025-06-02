@@ -25,6 +25,8 @@ const SingleDispatchRequestSchema = {
       ),
       // Campos específicos por tipo (ex: mediaUrl, caption, buttons, sections)
       mediaUrl: Type.Optional(Type.String({ format: "uri" })),
+      mediatype: Type.Optional(Type.String({ description: "Tipo da mídia (image, video, document, sticker)" })),
+      mimetype: Type.Optional(Type.String({ description: "MIME type da mídia (ex: image/jpeg)" })),
       audioUrl: Type.Optional(Type.String({ format: "uri" })), // Adicionado para audio
       caption: Type.Optional(Type.String()),
       buttons: Type.Optional(
@@ -141,10 +143,22 @@ async function dispatchRoutes(fastify, options) {
       const jobData = request.body;
       try {
         // Validação adicional específica por tipo
-        if (jobData.type === "media" && !jobData.mediaUrl) {
-          return reply
-            .status(400)
-            .send({ success: false, message: "mediaUrl é obrigatório para type=media" });
+        if (jobData.type === "media") {
+          if (!jobData.mediaUrl) {
+            return reply
+              .status(400)
+              .send({ success: false, message: "mediaUrl é obrigatório para type=media" });
+          }
+          if (!jobData.mediatype) {
+            return reply
+              .status(400)
+              .send({ success: false, message: "mediatype é obrigatório para type=media" });
+          }
+          if (!jobData.mimetype) {
+            return reply
+              .status(400)
+              .send({ success: false, message: "mimetype é obrigatório para type=media" });
+          }
         }
         if (jobData.type === "audio" && !jobData.audioUrl) {
           return reply

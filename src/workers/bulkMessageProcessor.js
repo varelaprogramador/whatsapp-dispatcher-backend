@@ -78,17 +78,68 @@ const processBulkMessageJob = async (job) => {
       switch (type) {
         case "text":
           const textPayload = { ...basePayload, text: finalMessage };
+          textPayload.delay = data.delay;
+          textPayload.linkPreview = data.linkPreview;
+          textPayload.mentionsEveryOne = data.mentionsEveryOne;
+          textPayload.mentioned = data.mentioned;
           response = await sendTextMessage(instanceName, textPayload);
           break;
         case "media":
           const mediaPayload = { ...basePayload, mediatype: data.mediatype, mimetype: data.mimetype, caption: finalCaption, media: data.mediaUrl, fileName: data.fileName, linkPreview: data.linkPreview };
+          mediaPayload.delay = data.delay;
+          mediaPayload.mentionsEveryOne = data.mentionsEveryOne;
+          mediaPayload.mentioned = data.mentioned;
           response = await sendMediaMessage(instanceName, mediaPayload);
           break;
         case "audio":
           const audioPayload = { ...basePayload, audio: data.audioUrl, linkPreview: data.linkPreview };
+          audioPayload.delay = data.delay;
+          audioPayload.mentionsEveryOne = data.mentionsEveryOne;
+          audioPayload.mentioned = data.mentioned;
           response = await sendAudioMessage(instanceName, audioPayload);
           break;
-        // TODO: Adicionar tratamento para outros tipos (buttons, list) se suportado pela API Evolution em payloads individuais
+        case "buttons":
+          const buttonsPayload = {
+            ...basePayload,
+            title: replaceVariables(data.title, recipientVariables),
+            description: replaceVariables(data.description, recipientVariables),
+            footer: replaceVariables(data.footer, recipientVariables),
+            buttons: data.buttons,
+            delay: data.delay,
+            linkPreview: data.linkPreview,
+            mentionsEveryOne: data.mentionsEveryOne,
+            mentioned: data.mentioned,
+          };
+          response = await sendButtonsMessage(instanceName, buttonsPayload);
+          break;
+        case "list":
+          const listPayload = {
+            ...basePayload,
+            title: replaceVariables(data.title, recipientVariables),
+            description: replaceVariables(data.description, recipientVariables),
+            buttonText: replaceVariables(data.buttonText, recipientVariables),
+            footerText: replaceVariables(data.footerText, recipientVariables),
+            values: data.values,
+            delay: data.delay,
+            linkPreview: data.linkPreview,
+            mentionsEveryOne: data.mentionsEveryOne,
+            mentioned: data.mentioned,
+          };
+          response = await sendListMessage(instanceName, listPayload);
+          break;
+        case "poll":
+          const pollPayload = {
+            ...basePayload,
+            name: replaceVariables(data.name, recipientVariables),
+            selectableCount: data.selectableCount,
+            values: Array.isArray(data.values) ? data.values.map(value => ({ optionName: value })) : [],
+            delay: data.delay,
+            linkPreview: data.linkPreview,
+            mentionsEveryOne: data.mentionsEveryOne,
+            mentioned: data.mentioned,
+          };
+          response = await sendPollMessage(instanceName, pollPayload);
+          break;
         default:
             logger.warn(`Job de Lote ${id}: Tipo de mensagem desconhecido ou não suportado para envio em lote: ${type}. Ignorando destinatário ${formattedNumber}.`);
             failedSends++;
@@ -144,4 +195,4 @@ const processBulkMessageJob = async (job) => {
   // Isso faria o BullMQ tentar novamente o lote inteiro.
 };
 
-export default processBulkMessageJob; 
+export default processBulkMessageJob;
