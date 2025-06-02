@@ -116,7 +116,7 @@ export const listJobs = async (types = [], start = 0, end = 19, asc = false) => 
     const total = jobTypes.reduce((sum, type) => sum + (counts[type] || 0), 0);
 
     // Mapear para retornar apenas dados relevantes (opcional)
-    const formattedJobs = jobs.map(async job => ({
+    const formattedJobPromises = jobs.map(async job => ({
       id: job.id,
       name: job.name,
       data: job.data,
@@ -127,6 +127,9 @@ export const listJobs = async (types = [], start = 0, end = 19, asc = false) => 
       failedReason: job.failedReason,
       attemptsMade: job.attemptsMade,
     }));
+
+    // Aguardar a resolução de todas as promises
+    const formattedJobs = await Promise.all(formattedJobPromises);
 
     return { jobs: formattedJobs, total };
   } catch (error) {
