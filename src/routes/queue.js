@@ -4,7 +4,6 @@ import {
   
   getJobById,
   listJobs, // Importar a nova função
-  cancelJob,
 } from "../services/queue.js";
 import logger from "../lib/logger.js";
 
@@ -42,18 +41,6 @@ async function queueRoutes(fastify, options) {
       };
     } catch (error) {
       logger.error(`Erro na rota /queue/jobs/${jobId}/status:`, error);
-      reply.status(500).send({ success: false, message: error.message });
-    }
-  });
-
-  // Nova rota para cancelar um job
-  fastify.delete("/jobs/:jobId", async (request, reply) => {
-    const { jobId } = request.params;
-    try {
-      await cancelJob(jobId);
-      return reply.send({ success: true, message: `Job ${jobId} cancelado com sucesso.` });
-    } catch (error) {
-      logger.error(`Erro na rota DELETE /queue/jobs/${jobId}:`, error);
       reply.status(500).send({ success: false, message: error.message });
     }
   });
